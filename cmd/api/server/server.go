@@ -15,11 +15,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/tsanny/kenmeri/internal/config"
 	"github.com/tsanny/kenmeri/internal/constants"
-	"github.com/tsanny/kenmeri/internal/datasources/drivers"
 	"github.com/tsanny/kenmeri/internal/http/middlewares"
 	"github.com/tsanny/kenmeri/internal/http/routes"
+	"github.com/tsanny/kenmeri/internal/utils"
 	"github.com/tsanny/kenmeri/pkg/logger"
-	"gorm.io/gorm"
 )
 
 type App struct {
@@ -28,7 +27,7 @@ type App struct {
 
 func NewApp() (*App, error) {
 	// setup databases
-	_, err := setupDatabse()
+	_, err := utils.SetupDatabase()
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +71,11 @@ func NewApp() (*App, error) {
 func (a *App) Run() (err error) {
 	// Gracefull Shutdown
 	go func() {
-		logger.Info(fmt.Sprintf("success to listen and serve on :%d", config.AppConfig.Port), logrus.Fields{constants.LoggerCategory: constants.LoggerCategoryInit})
+		logger.InfoF(
+			"success to listen and serve on :%d",
+			logrus.Fields{constants.LoggerCategory: constants.LoggerCategoryServer},
+			config.AppConfig.Port,
+		)
 		if err := a.HttpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to listen and serve: %+v", err)
 		}
@@ -83,7 +86,7 @@ func (a *App) Run() (err error) {
 
 	// Wait for a signal
 	<-quit
-	logger.Info("Shutdown server ...", logrus.Fields{constants.LoggerCategory: constants.LoggerCategoryClose})
+	logger.Info("Shutdown server ...", logrus.Fields{constants.LoggerCategory: constants.LoggerCategoryServer})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -94,26 +97,6 @@ func (a *App) Run() (err error) {
 	}
 
 	return nil
-}
-
-func setupDatabse() (*gorm.DB, error) {
-	// Setup Config Databse
-	configDB := drivers.ConfigPostgreSQL{
-		DB_Username: config.AppConfig.DBUsername,
-		DB_Password: config.AppConfig.DBPassword,
-		DB_Host:     config.AppConfig.DBHost,
-		DB_Port:     config.AppConfig.DBPort,
-		DB_Database: config.AppConfig.DBDatabase,
-		DB_DSN:      config.AppConfig.DBDsn,
-	}
-
-	// Initialize Database driversSQL
-	conn, err := configDB.InitializeDatabasePostgreSQL()
-	if err != nil {
-		return nil, err
-	}
-
-	return conn, nil
 }
 
 func setupRouter() *gin.Engine {
